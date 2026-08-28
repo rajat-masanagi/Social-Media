@@ -1,0 +1,53 @@
+@baseUrl = http://localhost:8080
+@token = paste-access-token-here
+@postId = paste-post-id-here
+@userId = paste-user-id-here
+
+### Register (LAB-2)
+POST {{baseUrl}}/api/auth/register
+Content-Type: application/json
+
+{"username":"learner_one","password":"password123"}
+
+### Login (LAB-2)
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{"username":"learner_one","password":"password123"}
+
+### Current user
+GET {{baseUrl}}/api/me
+Authorization: Bearer {{token}}
+
+### Create post (LAB-3)
+POST {{baseUrl}}/api/posts
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"text":"My first event-driven post"}
+
+### Read thread
+GET {{baseUrl}}/api/posts/{{postId}}
+
+### Reply directly to a post or reply
+POST {{baseUrl}}/api/posts/{{postId}}/replies
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"text":"A nested reply"}
+
+### Like idempotently
+POST {{baseUrl}}/api/posts/{{postId}}/likes/me
+Authorization: Bearer {{token}}
+
+### Follow idempotently
+POST {{baseUrl}}/api/users/{{userId}}/follow
+Authorization: Bearer {{token}}
+
+### Timeline (LAB-6)
+GET {{baseUrl}}/api/feed?limit=20
+Authorization: Bearer {{token}}
+
+### Search (LAB-5)
+GET {{baseUrl}}/api/search?q=event-driven&limit=20
+

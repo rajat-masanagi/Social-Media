@@ -1,0 +1,21 @@
+server:
+  port: 8081
+spring:
+  application.name: social-service
+  datasource:
+    url: ${MYSQL_URL:jdbc:mysql://localhost:3306/social}
+    username: ${MYSQL_USER:social}
+    password: ${MYSQL_PASSWORD:social}
+  jpa:
+    hibernate.ddl-auto: validate
+    open-in-view: false
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+app:
+  jwt:
+    secret: ${JWT_SECRET:local-learning-secret-change-me-12345678901234567890}
+    ttl-seconds: 3600
+  internal-api-key: ${INTERNAL_API_KEY:local-internal-key}
+  celebrity-threshold: ${CELEBRITY_THRESHOLD:100}
+management.endpoints.web.exposure.include: health,info
+

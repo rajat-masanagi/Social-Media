@@ -1,0 +1,9 @@
+.idea/
+.vscode/
+**/target/
+frontend/node_modules/
+frontend/dist/
+.env
+*.jtl
+load-tests/report/
+

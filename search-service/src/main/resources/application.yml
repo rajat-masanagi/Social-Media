@@ -1,0 +1,10 @@
+server.port: 8083
+spring:
+  application.name: search-service
+  elasticsearch.uris: ${ELASTICSEARCH_URL:http://localhost:9200}
+  kafka.bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+app.kafka:
+  content-topic: content-published-v1
+  listener-enabled: ${KAFKA_LISTENER_ENABLED:false}
+management.endpoints.web.exposure.include: health,info
+

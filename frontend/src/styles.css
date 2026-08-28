@@ -1,0 +1,20 @@
+:root { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; color: #171717; background: #fafafa; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+.shell { max-width: 720px; margin: 0 auto; padding: 0 16px 48px; }
+nav { display: flex; gap: 16px; align-items: center; padding: 20px 0; border-bottom: 1px solid #bbb; }
+nav button { margin-left: auto; }
+main { padding-top: 20px; }
+article { border-bottom: 1px solid #ccc; padding: 16px 0; overflow-wrap: anywhere; }
+article p { white-space: pre-wrap; line-height: 1.45; }
+a { color: #174ea6; }
+button, input, textarea { font: inherit; }
+button { cursor: pointer; padding: 5px 9px; }
+form label { display: block; margin: 12px 0; }
+form label input { display: block; width: 100%; padding: 8px; }
+.composer textarea { width: 100%; min-height: 90px; resize: vertical; padding: 8px; }
+.composer div { display: flex; justify-content: flex-end; gap: 12px; align-items: center; }
+.reply { margin-left: 22px; border-left: 2px solid #ddd; padding-left: 12px; }
+.error { color: #a40000; background: #fff0f0; padding: 8px; }
+.link-button { margin-top: 12px; background: transparent; border: 0; color: #174ea6; text-decoration: underline; }
+

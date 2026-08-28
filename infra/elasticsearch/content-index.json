@@ -1,0 +1,14 @@
+{
+  "mappings": {
+    "properties": {
+      "rootId": { "type": "keyword" },
+      "parentId": { "type": "keyword" },
+      "authorId": { "type": "keyword" },
+      "authorUsername": { "type": "keyword" },
+      "text": { "type": "text" },
+      "createdAt": { "type": "date" },
+      "contentType": { "type": "keyword" }
+    }
+  }
+}
+
