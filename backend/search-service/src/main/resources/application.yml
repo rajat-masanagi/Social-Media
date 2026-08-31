@@ -1,0 +1,17 @@
+server.port: 8083
+spring:
+  application.name: search-service
+  elasticsearch.uris: ${ELASTICSEARCH_URL:http://localhost:9200}
+  kafka.bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+  kafka.consumer:
+    key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+    auto-offset-reset: earliest
+    properties.spring.json.trusted.packages: com.example.textsocial.events
+    properties.spring.json.value.default.type: com.example.textsocial.events.ContentPublishedV1
+    properties.spring.json.use.type.headers: false
+app.kafka:
+  content-topic: content-published-v1
+  listener-enabled: ${KAFKA_LISTENER_ENABLED:true}
+management.endpoints.web.exposure.include: health,info
+logging.pattern.console: "%d{HH:mm:ss.SSS} %-5level [${spring.application.name}] [%thread] %logger{36} - %msg%n"

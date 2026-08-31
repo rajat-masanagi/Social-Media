@@ -1,0 +1,27 @@
+server.port: 8082
+spring:
+  application.name: feed-service
+  cassandra:
+    contact-points: ${CASSANDRA_CONTACT_POINTS:localhost:9042}
+    local-datacenter: datacenter1
+    keyspace-name: text_social
+    schema-action: none
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      auto-offset-reset: earliest
+      properties:
+        spring.json.trusted.packages: com.example.textsocial.events
+        spring.json.value.default.type: com.example.textsocial.events.ContentPublishedV1
+        spring.json.use.type.headers: false
+app:
+  jwt.secret: ${JWT_SECRET:local-learning-secret-change-me-12345678901234567890}
+  internal-api-key: ${INTERNAL_API_KEY:local-internal-key}
+  social-url: ${SOCIAL_URL:http://localhost:8912}
+  kafka:
+    content-topic: content-published-v1
+    listener-enabled: ${KAFKA_LISTENER_ENABLED:true}
+management.endpoints.web.exposure.include: health,info
+logging.pattern.console: "%d{HH:mm:ss.SSS} %-5level [${spring.application.name}] [%thread] %logger{36} - %msg%n"

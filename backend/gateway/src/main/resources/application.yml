@@ -1,0 +1,31 @@
+server:
+  port: 8080
+spring:
+  application:
+    name: gateway
+  cloud:
+    gateway:
+      server:
+        webflux:
+          routes:
+            - id: social
+              uri: ${SOCIAL_URL:http://localhost:8912}
+              predicates:
+                - Path=/api/auth/**,/api/me,/api/users/**,/api/posts/**
+            - id: feed
+              uri: ${FEED_URL:http://localhost:8913}
+              predicates:
+                - Path=/api/feed/**
+            - id: search
+              uri: ${SEARCH_URL:http://localhost:8914}
+              predicates:
+                - Path=/api/search/**
+app:
+  frontend-origin: ${FRONTEND_ORIGIN:http://localhost:8915}
+  jwt:
+    secret: ${JWT_SECRET:local-learning-secret-change-me-12345678901234567890}
+management:
+  endpoints.web.exposure.include: health,info
+logging:
+  pattern:
+    console: "%d{HH:mm:ss.SSS} %-5level [${spring.application.name}] [%thread] %logger{36} - %msg%n"

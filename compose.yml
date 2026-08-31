@@ -6,7 +6,7 @@ services:
       MYSQL_USER: social
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-social}
       MYSQL_ROOT_PASSWORD: root
-    ports: ["3306:3306"]
+    ports: ["8916:3306"]
     volumes: ["mysql-data:/var/lib/mysql"]
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
@@ -16,7 +16,7 @@ services:
 
   kafka:
     image: apache/kafka:3.9.1
-    ports: ["9092:9092"]
+    ports: ["8917:9092"]
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
@@ -43,7 +43,7 @@ services:
 
   cassandra:
     image: cassandra:5.0.9
-    ports: ["9042:9042"]
+    ports: ["8918:9042"]
     environment:
       MAX_HEAP_SIZE: 1024M
       HEAP_NEWSIZE: 256M
@@ -65,7 +65,7 @@ services:
 
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.18.1
-    ports: ["9200:9200"]
+    ports: ["8919:9200"]
     environment:
       discovery.type: single-node
       xpack.security.enabled: "false"
@@ -82,10 +82,103 @@ services:
     depends_on:
       elasticsearch: { condition: service_healthy }
     volumes: ["./infra/elasticsearch/content-index.json:/content-index.json:ro"]
-    command: ["-fsS", "-X", "PUT", "http://elasticsearch:9200/content-v1", "-H", "Content-Type: application/json", "--data-binary", "@/content-index.json"]
+    command: ["/bin/sh", "-c", "if [ \"$(curl -s -o /dev/null -w '%{http_code}' http://elasticsearch:9200/content-v1)\" = \"200\" ]; then echo 'content-v1 already exists'; exit 0; fi; curl -fsS -X PUT http://elasticsearch:9200/content-v1 -H 'Content-Type: application/json' --data-binary @/content-index.json"]
+
+  social-service:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      args: { MODULE: social-service }
+    environment:
+      MYSQL_URL: jdbc:mysql://mysql:3306/social
+      MYSQL_USER: social
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-social}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      JWT_SECRET: ${JWT_SECRET:-local-learning-secret-change-me-12345678901234567890}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-local-internal-key}
+    ports: ["8912:8081"]
+    depends_on:
+      mysql: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+      kafka-init: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8081/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  feed-service:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      args: { MODULE: feed-service }
+    environment:
+      CASSANDRA_CONTACT_POINTS: cassandra:9042
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SOCIAL_URL: http://social-service:8081
+      JWT_SECRET: ${JWT_SECRET:-local-learning-secret-change-me-12345678901234567890}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-local-internal-key}
+    ports: ["8913:8082"]
+    depends_on:
+      cassandra-init: { condition: service_completed_successfully }
+      kafka-init: { condition: service_completed_successfully }
+      social-service: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8082/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  search-service:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      args: { MODULE: search-service }
+    environment:
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    ports: ["8914:8083"]
+    depends_on:
+      elasticsearch-init: { condition: service_completed_successfully }
+      kafka-init: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8083/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  gateway:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      args: { MODULE: gateway }
+    environment:
+      SOCIAL_URL: http://social-service:8081
+      FEED_URL: http://feed-service:8082
+      SEARCH_URL: http://search-service:8083
+      FRONTEND_ORIGIN: http://localhost:8915
+      JWT_SECRET: ${JWT_SECRET:-local-learning-secret-change-me-12345678901234567890}
+    ports: ["8911:8080"]
+    depends_on:
+      social-service: { condition: service_healthy }
+      feed-service: { condition: service_healthy }
+      search-service: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args: { VITE_API_URL: http://localhost:8911 }
+    ports: ["8915:80"]
+    depends_on:
+      gateway: { condition: service_healthy }
 
 volumes:
   mysql-data:
   cassandra-data:
   elasticsearch-data:
-

@@ -30,6 +30,17 @@ The local HMAC JWT secret and internal API key are intentionally shared developm
 
 ## First run on Windows
 
+### Run everything with Docker Compose
+
+Stop any locally running Java or Vite processes using ports 8080-8083 or 5173, then run from the repository root:
+
+```powershell
+docker compose up --build -d
+docker compose ps
+```
+
+Open `http://localhost:5173`. Follow logs with `docker compose logs -f gateway social-service feed-service search-service` and stop the stack with `docker compose down`. Named database volumes are preserved by `down`; use `down -v` only when you intentionally want to erase local data.
+
 1. Start Docker Desktop.
 2. Start the databases and broker:
 
@@ -37,14 +48,14 @@ The local HMAC JWT secret and internal API key are intentionally shared developm
    .\scripts\start-infra.ps1
    ```
 
-3. Verify and install backend modules once:
+3. Verify and install backend modules once. This step is required because each service is started independently and depends on the shared `event-contracts` JAR:
 
    ```powershell
    mvn test
-   mvn install -DskipTests
+   .\scripts\build.ps1
    ```
 
-4. In four terminals, start the services:
+4. In four terminals, start the services. MySQL defaults to host port `3307` in this project:
 
    ```powershell
    mvn -pl social-service spring-boot:run
@@ -84,4 +95,3 @@ Set-Location frontend
 npm.cmd run test
 npm.cmd run build
 ```
-
