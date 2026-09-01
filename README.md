@@ -1,91 +1,206 @@
 # Text Social
 
-A deliberately small, text-only social network for learning Spring MVC and distributed-system design. The repository is a **boilerplate, not a completed solution**: it builds successfully, exposes the final HTTP contracts, and marks your implementation work with `TODO(LAB-n)`.
+Text Social is a text-only social-media platform implemented as an event-driven microservices system. It provides authentication, posts, threaded replies, follows, likes, personalized feeds, and full-text search.
+
+The project demonstrates service ownership, asynchronous event propagation, polyglot persistence, API gateway routing, and independently rebuildable read models.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-  UI[React] --> GW[Gateway :8080]
-  GW --> S[Social :8081]
-  GW --> F[Feed :8082]
-  GW --> Q[Search :8083]
-  S --> M[(MySQL)]
-  S --> O[(Outbox)] --> K[Kafka]
-  K --> F --> C[(Cassandra)]
-  K --> Q --> E[(Elasticsearch)]
-  F -->|OpenFeign| S
+    UI[React Frontend] --> GW[Spring Cloud Gateway :8080]
+    GW --> S[Social Service :8081]
+    GW --> F[Feed Service :8082]
+    GW --> Q[Search Service :8083]
+    S --> DB[(MySQL)]
+    S --> O[Transactional Outbox]
+    O --> K[(Kafka: content-published-v1)]
+    K --> F
+    K --> Q
+    F --> C[(Cassandra)]
+    Q --> E[(Elasticsearch)]
+    F -->|OpenFeign| S
 ```
 
-Read [the system-design notes](docs/SYSTEM_DESIGN.md), then work through [the labs](docs/LABS.md) in order. API calls are ready in [requests.http](requests.http).
+The browser communicates only with the Gateway. Social Service owns authoritative transactional data in MySQL. Feed Service and Search Service maintain independently rebuildable read models in Cassandra and Elasticsearch.
 
-## Prerequisites
+## Services
 
-- Java 21 and Maven 3.9+
-- Node 20.19+ (Node 24 is already installed on this machine)
-- Docker Desktop with at least roughly 4 GB available to containers
-- Apache JMeter 5.6.3 for Lab 8
+### Social Service
 
-The local HMAC JWT secret and internal API key are intentionally shared development secrets. Never copy this security arrangement into production.
+Owns users, authentication, relationships, posts, replies, likes, and the outbox. It uses MySQL, Spring Data JPA, Flyway migrations, Spring Security, and JWT access tokens.
 
-## First run on Windows
+### Feed Service
 
-### Run everything with Docker Compose
+Consumes published-content events and builds timeline projections in Cassandra. It uses a hybrid feed algorithm: ordinary authors use fan-out-on-write, while celebrity authors are merged into a timeline during reads. Feed hydration uses OpenFeign to call Social Service.
 
-Stop any locally running Java or Vite processes using ports 8080-8083 or 5173, then run from the repository root:
+### Search Service
+
+Consumes the same content events as Feed Service and indexes them in Elasticsearch. Search is eventually consistent and uses the content ID as the document ID for idempotent updates.
+
+### Gateway
+
+Spring Cloud Gateway is the single HTTP entry point. It routes API paths to backend services and provides the browser-facing CORS and JWT security boundary.
+
+### Event Contracts
+
+The `event-contracts` module contains versioned Kafka wire types shared by producers and consumers. The current event is `ContentPublishedV1`.
+
+## Event and Pub/Sub flow
+
+When a post is created:
+
+1. Social Service saves the post and an outbox record in one MySQL transaction.
+2. A scheduled publisher reads unpublished outbox records.
+3. The publisher sends `ContentPublishedV1` to Kafka topic `content-published-v1`.
+4. Feed Service consumes the event and writes Cassandra feed projections.
+5. Search Service consumes the same event independently and writes an Elasticsearch document.
+
+Feed Service and Search Service use different Kafka consumer groups, so both receive every relevant event. This is an at-least-once delivery model with idempotent consumers. A crash after Kafka acknowledgement but before the outbox row is marked published can produce a duplicate; stable content IDs make reprocessing safe.
+
+## Data ownership and consistency
+
+- MySQL is the source of truth for identity and social interactions.
+- Cassandra stores query-oriented timeline projections, not relational joins.
+- Elasticsearch stores a searchable content projection.
+- Writes to Social Service are strongly consistent within MySQL transactions.
+- Feeds and search are eventually consistent and may update shortly after a post succeeds.
+- If a read model is lost, it can be rebuilt by replaying retained Kafka events.
+
+## Spring Cloud usage
+
+This project uses Spring Cloud for:
+
+- **Spring Cloud Gateway** — edge routing, centralized entry point, and request filtering.
+- **Spring Cloud OpenFeign** — declarative HTTP communication from Feed Service to Social Service.
+- **Spring Cloud BOM** — compatible dependency management in the root Maven POM.
+
+Service discovery and Spring Cloud Config are intentionally not included. Local service URLs are supplied through environment variables and Docker Compose networking.
+
+## Features
+
+- User registration and login with JWT authentication
+- User profiles and follow relationships
+- Text posts with nested threaded replies
+- Idempotent likes and follows
+- Cursor-based pagination
+- Personalized home timelines
+- Hybrid celebrity fan-out strategy
+- Full-text content search
+- Transactional outbox publishing
+- Idempotent Kafka consumers
+- Gateway routing and CORS configuration
+- Health endpoints through Spring Boot Actuator
+- React frontend
+- Docker Compose development environment
+- JMeter load-test configuration
+
+## Technology stack
+
+- Java 21
+- Spring Boot 3.5
+- Spring Cloud 2025
+- Spring MVC and WebFlux
+- Spring Data JPA and Cassandra
+- Spring Kafka
+- Spring Cloud Gateway
+- Spring Cloud OpenFeign
+- Spring Security and JWT
+- MySQL 8.4
+- Apache Kafka 3.9
+- Cassandra 5
+- Elasticsearch 8
+- React, Vite, and Nginx
+- Docker Compose
+
+## Running with Docker Compose
+
+Prerequisites: Docker Desktop with approximately 4 GB of available memory.
 
 ```powershell
 docker compose up --build -d
 docker compose ps
 ```
 
-Open `http://localhost:5173`. Follow logs with `docker compose logs -f gateway social-service feed-service search-service` and stop the stack with `docker compose down`. Named database volumes are preserved by `down`; use `down -v` only when you intentionally want to erase local data.
+Open the application at `http://localhost:8915`.
 
-1. Start Docker Desktop.
-2. Start the databases and broker:
+The local Compose ports are:
 
-   ```powershell
-   .\scripts\start-infra.ps1
-   ```
+| Component | URL or port |
+|---|---|
+| Frontend | http://localhost:8915 |
+| Gateway | http://localhost:8911 |
+| Social Service | http://localhost:8912 |
+| Feed Service | http://localhost:8913 |
+| Search Service | http://localhost:8914 |
+| MySQL | localhost:8916 |
+| Kafka | localhost:8917 |
+| Cassandra | localhost:8918 |
+| Elasticsearch | http://localhost:8919 |
 
-3. Verify and install backend modules once. This step is required because each service is started independently and depends on the shared `event-contracts` JAR:
+Follow application logs with:
 
-   ```powershell
-   mvn test
-   .\scripts\build.ps1
-   ```
+```powershell
+docker compose logs -f gateway social-service feed-service search-service
+```
 
-4. In four terminals, start the services. MySQL defaults to host port `3307` in this project:
+Stop the stack with:
 
-   ```powershell
-   mvn -pl social-service spring-boot:run
-   mvn -pl feed-service spring-boot:run
-   mvn -pl search-service spring-boot:run
-   mvn -pl gateway spring-boot:run
-   ```
+```powershell
+docker compose down
+```
 
-5. Start React in another terminal. Use `npm.cmd` because this machine's PowerShell policy blocks `npm.ps1`:
+Named volumes are preserved by `down`. Use `docker compose down -v` only when local database data should be removed.
 
-   ```powershell
-   Set-Location frontend
-   npm.cmd install
-   npm.cmd run dev
-   ```
+## Running backend services locally
 
-6. Open `http://localhost:5173`. Before completing a lab, its endpoint intentionally returns `501 LAB_NOT_IMPLEMENTED`.
+Start infrastructure first:
 
-Kafka listeners default to off so an unfinished consumer cannot surprise you. Enable them in Labs 5–6 with `KAFKA_LISTENER_ENABLED=true`.
+```powershell
+.\\scripts\\start-infra.ps1
+mvn test
+.\\scripts\\build.ps1
+```
 
-## Project map
+Then start the services from the repository root:
 
-- `social-service`: users, authentication, relationships, content, likes, MySQL, and outbox ownership.
-- `feed-service`: Cassandra read models and hybrid celebrity timeline algorithm.
-- `search-service`: Elasticsearch projection populated from Kafka.
-- `gateway`: the only browser entry point and first JWT/CORS boundary.
-- `event-contracts`: only versioned Kafka wire types; no domain entities or service logic.
-- `frontend`: plain React/JavaScript and CSS with all required screens.
-- `infra`, `compose.yml`: local MySQL, Kafka KRaft, Cassandra, and Elasticsearch.
-- `load-tests`: JMeter workload and experiment guide.
+```powershell
+mvn -pl social-service spring-boot:run
+mvn -pl feed-service spring-boot:run
+mvn -pl search-service spring-boot:run
+mvn -pl gateway spring-boot:run
+```
+
+Start the frontend in a separate terminal:
+
+```powershell
+Set-Location frontend
+npm.cmd install
+npm.cmd run dev
+```
+
+For local Spring Boot execution, the Gateway listens on port `8080`; the backend services use ports `8081`–`8083`. Environment variables can override infrastructure and service URLs.
+
+## API examples
+
+The file [`requests.http`](requests.http) contains ready-to-run examples for registration, login, posting, replies, likes, follows, feeds, and search.
+
+Typical API calls use the Gateway:
+
+```http
+POST http://localhost:8911/api/auth/login
+Content-Type: application/json
+
+{"username":"demo_user","password":"password123"}
+```
+
+```http
+POST http://localhost:8911/api/posts
+Authorization: Bearer YOUR_TOKEN
+Content-Type: application/json
+
+{"text":"Hello from Text Social"}
+```
 
 ## Verification
 
@@ -95,3 +210,8 @@ Set-Location frontend
 npm.cmd run test
 npm.cmd run build
 ```
+
+## Security note
+
+The default JWT secret and internal API key are development values only. Set secure values through environment variables before using the system outside a local environment.
+
